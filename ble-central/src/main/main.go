@@ -15,13 +15,11 @@ import (
 
 var done = make(chan struct{})
 
-const TELEGRAF_ENDPOINT="http://tick-stack.localdomain:8186/write"
-const PATTERN="sprintf(buf, \"%s,room=%s value=%.2f %ld000000000\", name, ROOM, value, timeClient.getEpochTime());"
+const TELEGRAF_ENDPOINT = "http://tick-stack.localdomain:8186/write"
 
+const SERVICE_UUID = "4fafc2011fb5459e8fccc5c9c331914b"
 
-const SERVICE_UUID="4fafc2011fb5459e8fccc5c9c331914b"
-
-var char_uuids=map[string]string{
+var char_uuids = map[string]string{
 	"beb5483e36e14688b7f5ea07361b26a8": "temperature",
 	"5b1363f09f5711eaa61ff32afc9842aa": "battery",
 	"7649df809f5911ea8bb5a35ae24ada32": "rain",
