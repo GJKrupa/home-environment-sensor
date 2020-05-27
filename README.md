@@ -10,6 +10,7 @@ I used a modified version of the Docker Compose script found [here](https://medi
 
 Please note that all links are via Amazon UK.  This is solely because that's where I purchased them.  I did not receive any consideration from Amazon for linking to their site.  While these are the specific components that I used, there are many similar pin-compatible items available as alternatives.
 * [JZK ESP32 DevKit clone](https://www.amazon.co.uk/gp/product/B071JR9WS9/ref=ppx_yo_dt_b_asin_title_o03_s01?ie=UTF8&psc=1).  Any DevKitC variant will do but this was the cheapest I could find in the UK
+* [Raspberry Pi](https://www.raspberrypi.org/) - a Pi 4 is recommended as it supports Bluetooth 5 but any model that supports BLE will work
 * [Voltage Detector](https://www.amazon.co.uk/gp/product/B076Q27P59/ref=ppx_yo_dt_b_asin_title_o09_s00?ie=UTF8&psc=1)
 * [Rain Sensor](https://www.amazon.co.uk/gp/product/B072JCRY6R/ref=ppx_yo_dt_b_asin_title_o05_s00?ie=UTF8&psc=1)
 * [BME280-based Multi-Sensor](https://www.amazon.co.uk/gp/product/B0799FH5PG/ref=ppx_yo_dt_b_asin_title_o06_s00?ie=UTF8&psc=1)
@@ -28,7 +29,9 @@ This diagram shows the connector layout.  Note that I'm using pins 27 and 32 in 
 
 ## The Code
 
-The code was written using [PlatformIO](https://platformio.org/) in VSCode.  Hopefully this is reasonably self-explanatory.  I've added some configuration macros at the top for things like wi-fi settings, database endpoint and NTP servers and details of specific rooms.  The RAIN_MONITOR macro should be defined when creating the outdoor version and commented out for the indoor model.
+The microcontroller code was written using [PlatformIO](https://platformio.org/) in VSCode.  Hopefully this is reasonably self-explanatory.  I've added some configuration macros at the top for details of specific rooms.  The RAIN_MONITOR macro should be defined when creating the outdoor version and commented out for the indoor model.
+
+The Pi code is written using [Go](https://golang.org/) and makes use of the [PayPal GATT](https://github.com/paypal/gatt) library which is no longer maintains so may cease to function if significant changes are made to the Linux BlueZ stack. There are more recent forks of this library but I found issues with them.
 
 ## Construction
 
