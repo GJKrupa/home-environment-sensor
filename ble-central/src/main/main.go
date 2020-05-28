@@ -2,6 +2,7 @@ package main
 
 import (
 	"bytes"
+	"context"
 	"encoding/binary"
 	"fmt"
 	"log"
@@ -9,8 +10,8 @@ import (
 	"net/http"
 	"time"
 
-	"github.com/paypal/gatt"
-	"github.com/paypal/gatt/examples/option"
+	"github.com/go-ble/ble"
+	"github.com/go-ble/ble/examples/lib/dev"
 )
 
 var done = make(chan struct{})
@@ -26,101 +27,49 @@ var char_uuids = map[string]string{
 	"7cd6d0609f5911ea8bb5a35ae24ada32": "humidity",
 	"8aabebd09f5911ea8bb5a35ae24ada32": "pressure"}
 
-func onStateChanged(d gatt.Device, s gatt.State) {
-	fmt.Println("State:", s)
-	switch s {
-	case gatt.StatePoweredOn:
-		fmt.Println("Scanning...")
-		d.Scan([]gatt.UUID{}, false)
-		return
-	default:
-		d.StopScanning()
-	}
-}
+var names = map[string]string{}
 
-func onPeriphDiscovered(p gatt.Peripheral, a *gatt.Advertisement, rssi int) {
-
-	var isOk = false
-	for _, svc := range a.Services {
-		if svc.String() == SERVICE_UUID {
-			isOk = true
+func explore(cln ble.Client, p *ble.Profile) {
+	name := names[cln.Addr().String()]
+	fmt.Printf("Connected to %s\n", name)
+	defer func() {
+		if r := recover(); r != nil {
+			fmt.Printf("Panic: %+v\n", r)
 		}
-	}
-
-	if isOk {
-		fmt.Printf("Connecting to: '%s'...\n", p.Name())
-		// Stop scanning once we've got the peripheral we're looking for.
-		p.Device().StopScanning()
-
-		fmt.Printf("\nPeripheral ID:%s, NAME:(%s)\n", p.ID(), p.Name())
-		fmt.Println("  Local Name        =", a.LocalName)
-		fmt.Println("  TX Power Level    =", a.TxPowerLevel)
-		fmt.Println("  Manufacturer Data =", a.ManufacturerData)
-		fmt.Println("  Service Data      =", a.ServiceData)
-		fmt.Println("")
-
-		p.Device().Connect(p)
-	}
-}
-
-func onPeriphConnected(p gatt.Peripheral, err error) {
-	fmt.Println("Connected")
-	defer p.Device().CancelConnection(p)
-
-	if err := p.SetMTU(500); err != nil {
-		fmt.Printf("Failed to set MTU, err: %s\n", err)
-	}
-
-	// Discovery services
-	ss, err := p.DiscoverServices(nil)
-	if err != nil {
-		fmt.Printf("Failed to discover services, err: %s\n", err)
-		return
-	}
-
-	if len(ss) == 0 {
-		fmt.Printf("No services found!")
-	}
+	}()
 
 	var values = map[string]float64{}
 
-	for _, s := range ss {
-		if s.UUID().String() == SERVICE_UUID {
+	for _, svc := range p.Services {
+		if svc.UUID.String() == SERVICE_UUID {
 			// Discovery characteristics
-			cs, err := p.DiscoverCharacteristics(nil, s)
-			if err != nil {
-				fmt.Printf("Failed to discover characteristics, err: %s\n", err)
-				continue
-			}
-
-			if len(cs) == 0 {
-				fmt.Printf("No characteristics found!")
-			}
-
-			for _, c := range cs {
-				if char_uuids[c.UUID().String()] != "" {
-					name := char_uuids[c.UUID().String()]
+			for _, c := range svc.Characteristics {
+				if char_uuids[c.UUID.String()] != "" {
+					name := char_uuids[c.UUID.String()]
 					// Read the characteristic, if possible.
-					if (c.Properties() & gatt.CharRead) != 0 {
-						b, err := p.ReadCharacteristic(c)
+					if (c.Property & ble.CharRead) != 0 {
+						b, err := cln.ReadCharacteristic(c)
 						bits := binary.LittleEndian.Uint64(b)
 						float := math.Float64frombits(bits)
 						if err != nil {
 							fmt.Printf("Failed to read characteristic, err: %s\n", err)
 							continue
+						} else {
+							fmt.Printf("Read characteristic %s\n", c.UUID.String())
 						}
 
 						values[name] = float
-
+					} else {
+						fmt.Printf("No permission to read characteristic %s\n", c.UUID.String())
 					}
+				} else {
+					fmt.Printf("Unknown characteristic %s\n", c.UUID.String())
 				}
 			}
-
-			fmt.Println()
 		}
 	}
 
-	go sendToTick(p.Name(), values)
+	go sendToTick(name, values)
 }
 
 func sendToTick(name string, values map[string]float64) {
@@ -133,26 +82,60 @@ func sendToTick(name string, values map[string]float64) {
 	}
 }
 
-func onPeriphDisconnected(p gatt.Peripheral, err error) {
-	fmt.Println("Disconnected")
-	p.Device().Scan([]gatt.UUID{}, false)
-}
-
 func main() {
-	d, err := gatt.NewDevice(option.DefaultClientOptions...)
+	d, err := dev.NewDevice("default")
 	if err != nil {
-		log.Fatalf("Failed to open device, err: %s\n", err)
-		return
+		log.Fatalf("can't new device : %s", err)
+	}
+	ble.SetDefaultDevice(d)
+
+	filter := func(a ble.Advertisement) bool {
+		for _, svc := range a.Services() {
+			if svc.String() == SERVICE_UUID {
+				fmt.Printf("Found %s (%s)\n", a.Addr().String(), a.LocalName())
+				if a.LocalName() != "" {
+					names[a.Addr().String()] = a.LocalName()
+					return true
+				}
+			}
+		}
+		return false
 	}
 
-	// Register handlers.
-	d.Handle(
-		gatt.PeripheralDiscovered(onPeriphDiscovered),
-		gatt.PeripheralConnected(onPeriphConnected),
-		gatt.PeripheralDisconnected(onPeriphDisconnected),
-	)
+	for true {
+		fmt.Println("Scanning...")
+		ctx := ble.WithSigHandler(context.WithTimeout(context.Background(), 2*time.Minute))
+		cln, err := ble.Connect(ctx, filter)
+		if err != nil {
+			log.Printf("can't connect : %s", err)
+			continue
+		}
 
-	d.Init(onStateChanged)
-	<-done
-	fmt.Println("Done")
+		// Make sure we had the chance to print out the message.
+		done := make(chan struct{})
+		// Normally, the connection is disconnected by us after our exploration.
+		// However, it can be asynchronously disconnected by the remote peripheral.
+		// So we wait(detect) the disconnection in the go routine.
+		go func() {
+			<-cln.Disconnected()
+			fmt.Printf("[ %s ] is disconnected \n", cln.Addr())
+			close(done)
+		}()
+
+		fmt.Printf("Discovering profile...\n")
+		p, err := cln.DiscoverProfile(true)
+		if err != nil {
+			log.Printf("can't discover profile on %s: %s", cln.Addr().String(), err)
+		} else {
+			// Start the exploration.
+			explore(cln, p)
+		}
+
+		// Disconnect the connection. (On OS X, this might take a while.)
+		fmt.Printf("Disconnecting [ %s ]... (this might take up to few seconds on OS X)\n", cln.Addr())
+		cln.CancelConnection()
+
+		<-done
+		fmt.Println("Done")
+	}
 }
