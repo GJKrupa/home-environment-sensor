@@ -31,7 +31,7 @@ void BatteryHomeSensor::submitReading(ReadingSubmitter &submitter)
     uint16_t analogueReading = analogRead(data_pin);
     double actual = ((double)analogueReading / 4095.0) * MAX_VOLTAGE;
 
-    submitter.sendReading("Battery", actual);
+    submitter.sendReading("battery", actual);
     data_sent = true;
 }
 

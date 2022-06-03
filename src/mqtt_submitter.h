@@ -1,7 +1,7 @@
 #pragma once
 #include "submitter.h"
 #include <Arduino.h>
-#include <PubSubClient.h>
+#include <AsyncMqttClient.h>
 
 class MQTTSubmitter: public ReadingSubmitter {
 
@@ -10,7 +10,14 @@ private:
     const char* host;
     int port;
     bool started;
-    PubSubClient *client;
+    volatile bool disconnected;
+    volatile bool publishAck;
+    AsyncMqttClient *client;
+
+    void onDisconnect(AsyncMqttClientDisconnectReason reason);
+    void onConnect(bool sessionPresent);
+    void onPublishAck(uint16_t packetId);
+
 
 public:
     MQTTSubmitter(String location, const char* host, int port);

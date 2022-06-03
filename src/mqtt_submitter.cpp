@@ -1,23 +1,16 @@
+#include <functional>
 #include "mqtt_submitter.h"
 #include <WiFi.h>
-#include <PubSubClient.h>
-
-void callback(char* topic, byte* payload, unsigned int length) {
-  Serial.print("Message arrived [");
-  Serial.print(topic);
-  Serial.print("] ");
-  for (int i=0;i<length;i++) {
-    Serial.print((char)payload[i]);
-  }
-  Serial.println();
-}
+#include <AsyncMqttClient.h>
 
 MQTTSubmitter::MQTTSubmitter(String location, const char* host, int port) :
     location(location),
     host(host),
     port(port),
     started(false),
-    client(new PubSubClient(*new WiFiClient()))
+    disconnected(false),
+    publishAck(false),
+    client(new AsyncMqttClient())
 {
 }
 
@@ -29,19 +22,49 @@ bool MQTTSubmitter::initialised()
 void MQTTSubmitter::initialise()
 {
     client->setServer(host, port);
-    client->setCallback(callback);
-    client->connect("ESP32");
+    client->setClientId("ESP32");
+    client->onConnect(
+        [this] (bool sessionPresent) { this->onConnect(sessionPresent); }
+    );
+    client->onDisconnect(
+        [this] (AsyncMqttClientDisconnectReason reason) { this->onDisconnect(reason); }
+    );
+    client->onPublish(
+        [this] (uint16_t packetId) { this->onPublishAck(packetId); }
+    );
+    client->connect();
     started = true;
 }
 
 bool MQTTSubmitter::ready()
 {
-    return client->connected() || client->connect("ESP32");
+    return client->connected();
 }
 
 bool MQTTSubmitter::failed()
 {
-    return false;
+    return disconnected;
+}
+
+void MQTTSubmitter::onConnect(bool sessionPresent)
+{
+  Serial.println("Connected to MQTT.");
+  Serial.print("Session present: ");
+  Serial.println(sessionPresent);
+}
+
+void MQTTSubmitter::onDisconnect(AsyncMqttClientDisconnectReason reason)
+{
+    Serial.println("Disconnected from MQTT.");
+    disconnected = true;
+}
+
+void MQTTSubmitter::onPublishAck(uint16_t packetId)
+{
+  Serial.println("Publish acknowledged.");
+  Serial.print("  packetId: ");
+  Serial.println(packetId);
+  publishAck = true;
 }
 
 void MQTTSubmitter::sendReading(String name, double value)
@@ -55,5 +78,19 @@ void MQTTSubmitter::sendReading(String name, double value)
 
     Serial.printf("Submitting reading %s = %f\n", topic.c_str(), value);
 
-    client->publish(topic.c_str(), valueString.c_str());
+    publishAck = false;
+    uint16_t msgId = client->publish(topic.c_str(), 1, true, valueString.c_str(), valueString.length());
+    for (int count = 0; count < 100 && !publishAck; ++count)
+    {
+        delay(10);
+    }
+    if (publishAck)
+    {
+        Serial.printf("Got ack on message ID: %d\n", msgId);
+    }
+    else
+    {
+        Serial.printf("Time out waiting for ack on message ID: %d\n", msgId);
+    }
+    
 }
