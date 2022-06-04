@@ -67,7 +67,7 @@ void setup(void)
     logf("Connecting to wifi %s\n", WIFI_SSID);
     WiFi.begin(WIFI_SSID, WIFI_PASSPHRASE);
 
-    sensors.push_back(new BMEHomeSensor(25, 26, -1));
+    sensors.push_back(new BMEHomeSensor(25, 26, 32));
 #if RAIN_MONITOR == 1
     sensors.push_back(new RainHomeSensor(34, 27));
 #endif
