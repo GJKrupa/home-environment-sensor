@@ -1,6 +1,6 @@
 #pragma once
 #include <Wire.h>
-#include <BME280_t.h>
+#include <Adafruit_BME280.h>
 #include "home_sensor.h"
 
 class BMEHomeSensor: public HomeSensor {
@@ -15,6 +15,7 @@ public:
     virtual bool isOn();
     virtual bool sent();
     virtual String name();
+
 private:
     int data_pin;
     int clk_pin;
@@ -22,5 +23,7 @@ private:
     bool status;
     bool data_sent;
     bool is_on;
-    BME280<> bme;
+    Adafruit_BME280 bme;
+
+    uint8_t getAddress();
 };
