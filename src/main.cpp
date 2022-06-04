@@ -32,12 +32,6 @@
 #define RAIN_MONITOR 0
 #endif
 
-RTC_DATA_ATTR double lastExecutionTime;
-
-
-esp_sleep_wakeup_cause_t wakeupCause;
-long executionStart;
-
 MQTTSubmitter submitter(ROOM, MQTT_SERVER, MQTT_PORT);
 std::list<HomeSensor*> sensors;
 
@@ -59,9 +53,6 @@ void goToSleep(long microSeconds) {
 
 void setup(void)
 {
-    executionStart = esp_timer_get_time();
-    wakeupCause = esp_sleep_get_wakeup_cause();
-
     log_init();
 
     logf("Connecting to wifi %s\n", WIFI_SSID);
