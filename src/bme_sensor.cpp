@@ -1,4 +1,5 @@
 #include "bme_sensor.h"
+#include "logging.h"
 
 #define PASCALS_IN_HPA 100.0f
 #define ALTITUDE 80.0f
@@ -31,7 +32,7 @@ void BMEHomeSensor::setup()
 
 void BMEHomeSensor::submitReading(ReadingSubmitter &submitter)
 {
-    Serial.println("Getting BME sensors");
+    logln("Getting BME sensors");
     bme.refresh();
     submitter.sendReading("temperature", bme.temperature);
     submitter.sendReading("humidity", bme.humidity);

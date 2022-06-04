@@ -1,4 +1,5 @@
 #include "rain_sensor.h"
+#include "logging.h"
 
 #define PASCALS_IN_HPA 100.0f
 #define ALTITUDE 80.0f
@@ -27,7 +28,7 @@ void RainHomeSensor::setup()
 
 void RainHomeSensor::submitReading(ReadingSubmitter &submitter)
 {
-    Serial.println("Getting Rain sensors");
+    logln("Getting Rain sensors");
 
     uint16_t analogueReading = analogRead(data_pin);
     int invertedReading = 4095 - analogueReading;

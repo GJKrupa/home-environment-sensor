@@ -2,6 +2,7 @@
 #include "mqtt_submitter.h"
 #include <WiFi.h>
 #include <AsyncMqttClient.h>
+#include "logging.h"
 
 MQTTSubmitter::MQTTSubmitter(String location, const char* host, int port) :
     location(location),
@@ -48,22 +49,19 @@ bool MQTTSubmitter::failed()
 
 void MQTTSubmitter::onConnect(bool sessionPresent)
 {
-  Serial.println("Connected to MQTT.");
-  Serial.print("Session present: ");
-  Serial.println(sessionPresent);
+  logln("Connected to MQTT.");
+  logf("Session present: %s\n", sessionPresent ? "true" : "false");
 }
 
 void MQTTSubmitter::onDisconnect(AsyncMqttClientDisconnectReason reason)
 {
-    Serial.println("Disconnected from MQTT.");
+    logln("Disconnected from MQTT.");
     disconnected = true;
 }
 
 void MQTTSubmitter::onPublishAck(uint16_t packetId)
 {
-  Serial.println("Publish acknowledged.");
-  Serial.print("  packetId: ");
-  Serial.println(packetId);
+  logf("Publish acknowledged, packetId: %d\n", packetId);
   publishAck = true;
 }
 
@@ -76,7 +74,7 @@ void MQTTSubmitter::sendReading(String name, double value)
 
     String valueString = String(value);
 
-    Serial.printf("Submitting reading %s = %f\n", topic.c_str(), value);
+    logf("Submitting reading %s = %f\n", topic.c_str(), value);
 
     publishAck = false;
     uint16_t msgId = client->publish(topic.c_str(), 1, true, valueString.c_str(), valueString.length());
@@ -86,11 +84,11 @@ void MQTTSubmitter::sendReading(String name, double value)
     }
     if (publishAck)
     {
-        Serial.printf("Got ack on message ID: %d\n", msgId);
+        logf("Got ack on message ID: %d\n", msgId);
     }
     else
     {
-        Serial.printf("Time out waiting for ack on message ID: %d\n", msgId);
+        logf("Time out waiting for ack on message ID: %d\n", msgId);
     }
     
 }

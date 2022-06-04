@@ -1,4 +1,5 @@
-#include "Battery_sensor.h"
+#include "battery_sensor.h"
+#include "logging.h"
 
 #define MAX_VOLTAGE 4.4 * 5.0
 
@@ -26,7 +27,7 @@ void BatteryHomeSensor::setup()
 
 void BatteryHomeSensor::submitReading(ReadingSubmitter &submitter)
 {
-    Serial.println("Getting Battery sensors");
+    logln("Getting Battery sensors");
 
     uint16_t analogueReading = analogRead(data_pin);
     double actual = ((double)analogueReading / 4095.0) * MAX_VOLTAGE;

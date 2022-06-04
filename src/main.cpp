@@ -7,6 +7,7 @@
 #include "bme_sensor.h"
 #include "rain_sensor.h"
 #include "battery_sensor.h"
+#include "logging.h"
 
 // General configuration
 #define MICROSECONDS_IN_SECOND 1000000L
@@ -46,11 +47,11 @@ void goToSleep(long microSeconds) {
     for (it = sensors.begin(); it != sensors.end(); ++it)
     {
         HomeSensor *item = (*it);
-        Serial.printf("Switching off: %s\n", item->name());
+        logf("Switching off: %s\n", item->name());
         item->switchOff();
     }
 
-    Serial.flush();
+    log_close();
     delay(20);
     esp_sleep_enable_timer_wakeup(microSeconds);
     esp_deep_sleep_start();
@@ -61,9 +62,9 @@ void setup(void)
     executionStart = esp_timer_get_time();
     wakeupCause = esp_sleep_get_wakeup_cause();
 
-    Serial.begin(115200);
+    log_init();
 
-    Serial.printf("Connecting to wifi %s\n", WIFI_SSID);
+    logf("Connecting to wifi %s\n", WIFI_SSID);
     WiFi.begin(WIFI_SSID, WIFI_PASSPHRASE);
 
     sensors.push_back(new BMEHomeSensor(25, 26, -1));
@@ -98,33 +99,33 @@ void loop(void)
 
     if (++loopCount > 20)
     {
-        Serial.println("Reached loop limit, trying again later");
+        logln("Reached loop limit, trying again later");
         goToSleep(FAILURE_BACKOFF);
     }
     else if (status == WL_CONNECT_FAILED || status == WL_CONNECTION_LOST)
     {
-        Serial.println("Wifi has failed");
+        logln("Wifi has failed");
         goToSleep(FAILURE_BACKOFF);
     }
     else if (!WiFi.isConnected())
     {
-        Serial.println("Wifi not yet connected");
+        logln("Wifi not yet connected");
         delay(1000);
     }
     else if (submitter.failed())
     {
-        Serial.println("Submitter has failed");
+        logln("Submitter has failed");
         goToSleep(FAILURE_BACKOFF);
     }
     else if (!submitter.initialised())
     {
-        Serial.println("Initialising submitter");
+        logln("Initialising submitter");
         submitter.initialise();
         loopCount = 0;
     }
     else if (!submitter.ready())
     {
-        Serial.println("Submitter is not ready");
+        logln("Submitter is not ready");
         delay(1000);
     }
     else
@@ -133,7 +134,7 @@ void loop(void)
 
         if (complete())
         {
-            Serial.println("All reporting is complete");
+            logln("All reporting is complete");
             goToSleep(REPORT_PERIOD);
         }
         else
@@ -144,23 +145,23 @@ void loop(void)
                 HomeSensor *item = (*it);
                 if (item->isOn() && item->failed())
                 {
-                    Serial.printf("Item failed: %s\n", item->name());
+                    logf("Item failed: %s\n", item->name());
                     // No-op
                 }
                 else if (!item->sent() && !item->isOn())
                 {
-                    Serial.printf("Switching on: %s\n", item->name());
+                    logf("Switching on: %s\n", item->name());
                     item->switchOn();
                     item->setup();
                 }
                 else if (!item->sent() && item->ready())
                 {
-                    Serial.printf("Submitting reading: %s\n", item->name());
+                    logf("Submitting reading: %s\n", item->name());
                     item->submitReading(submitter);
                 }
                 else
                 {
-                    Serial.printf("Sensor is not ready: %s\n", item->name());
+                    logf("Sensor is not ready: %s\n", item->name());
                     mustWait = true;
                 }
             }
