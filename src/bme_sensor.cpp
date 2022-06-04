@@ -64,7 +64,7 @@ void BMEHomeSensor::switchOn()
 {
     if (pwr_pin > 0)
     {
-        digitalWrite(32, HIGH);
+        digitalWrite(pwr_pin, HIGH);
     }
     is_on = true;
 }
@@ -73,7 +73,7 @@ void BMEHomeSensor::switchOff()
 {
     if (pwr_pin > 0)
     {
-        digitalWrite(32, LOW);
+        digitalWrite(pwr_pin, LOW);
     }
     is_on = false;
 }
