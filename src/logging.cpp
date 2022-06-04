@@ -47,7 +47,7 @@ void logln(const char* line)
 #if SYSLOG_ENABLED == 1
     if (WiFi.isConnected())
     {
-        Serial.printf("Syslog...");
+        Serial.printf("Syslog... ");
         syslog.log(LOG_INFO, line);
     }
 #endif
@@ -67,7 +67,7 @@ void logf(const char *format, ...)
 #if SYSLOG_ENABLED == 1
     if (WiFi.isConnected())
     {
-        Serial.printf("Syslog...");
+        Serial.printf("Syslog... ");
         va_copy(copy2, arg);
         syslog.vlogf(LOG_INFO, format, copy2);
         va_end(copy2);
