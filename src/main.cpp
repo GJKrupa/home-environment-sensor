@@ -1,110 +1,174 @@
 #include <Arduino.h>
-#include <Wire.h>
 #include <SPI.h>
-#include <BME280_t.h>
-#include <readings.h>
+#include <WiFi.h>
+#include "mqtt_submitter.h"
+#include <list>
+#include "home_sensor.h"
+#include "bme_sensor.h"
+#include "rain_sensor.h"
+#include "battery_sensor.h"
+#include "logging.h"
 
 // General configuration
 #define MICROSECONDS_IN_SECOND 1000000L
-#define FAILURE_BACKIFF 5L * MICROSECONDS_IN_SECOND
+#define FAILURE_BACKOFF 5L * MICROSECONDS_IN_SECOND
 #define REPORT_PERIOD 120L * MICROSECONDS_IN_SECOND
-#define PASCALS_IN_HPA 100.0f
-#define MAX_VOLTAGE 4.4 * 5.0
+
+// Will be overridden in config
+#ifndef WIFI_SSID
+#define WIFI_SSID ""
+#endif
+#ifndef WIFI_PASSPHRASE
+#define WIFI_PASSPHRASE ""
+#endif
 
 // Instance-specific configuration
-#define ALTITUDE 80.0f
-#define ROOM "garden"
-#define RAIN_MONITOR 1
+
+#ifndef ROOM
+#define ROOM "nowhere"
+#endif
+
+#ifndef RAIN_MONITOR
+#define RAIN_MONITOR 0
+#endif
 
 RTC_DATA_ATTR double lastExecutionTime;
 
-BME280<> bme;
+
 esp_sleep_wakeup_cause_t wakeupCause;
 long executionStart;
 
-Readings *readings;
+MQTTSubmitter submitter(ROOM, MQTT_SERVER, MQTT_PORT);
+std::list<HomeSensor*> sensors;
 
 void goToSleep(long microSeconds) {
-#ifdef RAIN_MONITOR
-    digitalWrite(27, LOW);
-#endif
-    digitalWrite(32, LOW);
-    Serial.flush();
+    std::list<HomeSensor*>::iterator it;
+    bool allDone = true;
+    for (it = sensors.begin(); it != sensors.end(); ++it)
+    {
+        HomeSensor *item = (*it);
+        logf("Switching off: %s\n", item->name());
+        item->switchOff();
+    }
+
+    log_close();
+    delay(20);
     esp_sleep_enable_timer_wakeup(microSeconds);
     esp_deep_sleep_start();
 }
-
-double toBatteryVoltage(int analogueReading) {
-    return ((double)analogueReading / 4095.0) * MAX_VOLTAGE;
-}
-
-#ifdef RAIN_MONITOR
-double toRainReading(int analogueReading) {
-    int invertedReading = 4095 - analogueReading;
-    return ((double)invertedReading / 4095.8) * 100.0;
-}
-#endif
 
 void setup(void)
 {
     executionStart = esp_timer_get_time();
     wakeupCause = esp_sleep_get_wakeup_cause();
-    pinMode(33, INPUT);
-    pinMode(32, OUTPUT);
-#ifdef RAIN_MONITOR
-    pinMode(34, INPUT);
-    pinMode(27, OUTPUT);
-    digitalWrite(27, HIGH);
-#endif
-    digitalWrite(32, HIGH);
-    Wire.begin(25,26);
-    Serial.begin(115200);
-    bool status = bme.begin();  
-    if (!status) {
-        Serial.println("Could not find a valid BME280 sensor, check wiring!");
-        goToSleep(FAILURE_BACKIFF);
-    }
 
-    readings = new Readings(ROOM);
-    bme.refresh();
-    readings->setValue(BATTERY_UUID, toBatteryVoltage(analogRead(33)));
-    readings->setValue(TEMPERATURE_UUID, bme.temperature);
-    readings->setValue(HUMIDITY_UUID, bme.humidity);
-    readings->setValue(PRESSURE_UUID, bme.seaLevelForAltitude(ALTITUDE) / PASCALS_IN_HPA);
-    #ifdef RAIN_MONITOR
-        readings->setValue(RAIN_UUID, toRainReading(analogRead(34)));
-        digitalWrite(27, LOW);
-    #endif
-    readings->start();
+    log_init();
+
+    logf("Connecting to wifi %s\n", WIFI_SSID);
+    WiFi.begin(WIFI_SSID, WIFI_PASSPHRASE);
+
+    sensors.push_back(new BMEHomeSensor(25, 26, -1));
+#if RAIN_MONITOR == 1
+    sensors.push_back(new RainHomeSensor(34, 27));
+#endif
+#if BATTERY_MONITOR == 1
+    sensors.push_back(new  BatteryHomeSensor(33, 32));
+#endif
 }
+
+bool complete()
+{
+    std::list<HomeSensor*>::iterator it;
+    bool allDone = true;
+    for (it = sensors.begin(); it != sensors.end(); ++it)
+    {
+        HomeSensor *item = (*it);
+        if (!item->isOn() || !(item->sent() || item->failed()))
+        {
+            allDone = false;
+        }
+    }
+    return allDone;
+}
+
+int loopCount = 0;
 
 void loop(void)
 {
-    if (readings->readCompleted()) {
-        long executionTime = esp_timer_get_time() - executionStart;
-        lastExecutionTime = (double)executionTime;
-        long sleepTime = REPORT_PERIOD - executionTime;
-        double activeRatio = ((double)executionTime) / ((double)REPORT_PERIOD);
+    wl_status_t status = WiFi.status();
 
-        Serial.printf("Execution took %ld us, sleeping for %ld, active for %.2f%% of the time\n",
-            executionTime,
-            sleepTime,
-            activeRatio * 100.0
-        );
+    if (++loopCount > 20)
+    {
+        logln("Reached loop limit, trying again later");
+        goToSleep(FAILURE_BACKOFF);
+    }
+    else if (status == WL_CONNECT_FAILED || status == WL_CONNECTION_LOST)
+    {
+        logln("Wifi has failed");
+        goToSleep(FAILURE_BACKOFF);
+    }
+    else if (!WiFi.isConnected())
+    {
+        logln("Wifi not yet connected");
+        delay(1000);
+    }
+    else if (submitter.failed())
+    {
+        logln("Submitter has failed");
+        goToSleep(FAILURE_BACKOFF);
+    }
+    else if (!submitter.initialised())
+    {
+        logln("Initialising submitter");
+        submitter.initialise();
+        loopCount = 0;
+    }
+    else if (!submitter.ready())
+    {
+        logln("Submitter is not ready");
+        delay(1000);
+    }
+    else
+    {
+        std::list<HomeSensor*>::iterator it;
 
-        goToSleep(sleepTime);
-    } else if (esp_timer_get_time() - executionStart > 10L * MICROSECONDS_IN_SECOND) {
-        long executionTime = esp_timer_get_time() - executionStart;
-        lastExecutionTime = (double)executionTime;
-        long sleepTime = REPORT_PERIOD - executionTime;
-        double activeRatio = ((double)executionTime) / ((double)REPORT_PERIOD);
-
-        Serial.printf("NO CONTACT FROM CENTRAL! - Execution took %ld us, sleeping for %ld, active for %.2f%% of the time\n",
-            executionTime,
-            sleepTime,
-            activeRatio * 100.0
-        );
-
-        goToSleep(sleepTime);
+        if (complete())
+        {
+            logln("All reporting is complete");
+            goToSleep(REPORT_PERIOD);
+        }
+        else
+        {
+            bool mustWait = false;
+            for (it = sensors.begin(); it != sensors.end(); ++it)
+            {
+                HomeSensor *item = (*it);
+                if (item->isOn() && item->failed())
+                {
+                    logf("Item failed: %s\n", item->name());
+                    // No-op
+                }
+                else if (!item->sent() && !item->isOn())
+                {
+                    logf("Switching on: %s\n", item->name());
+                    item->switchOn();
+                    item->setup();
+                }
+                else if (!item->sent() && item->ready())
+                {
+                    logf("Submitting reading: %s\n", item->name());
+                    item->submitReading(submitter);
+                }
+                else
+                {
+                    logf("Sensor is not ready: %s\n", item->name());
+                    mustWait = true;
+                }
+            }
+            if (mustWait)
+            {
+                delay(200);
+            }
+        }
     }
 }

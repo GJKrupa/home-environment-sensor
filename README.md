@@ -1,11 +1,10 @@
-# Environment Monitor with Logging to InfluxDB (TICK stack)
+# Environment Monitor with Logging to MQTT
 
 This device measures environmental conditions such as temperature,  humidity, relative pressure and rainfall and reports that data to InfluxDB via the Telegraf endpoint when deployed as part of the TICK  stack (https://www.influxdata.com/time-series-platform/).  It also  includes a battery voltage monitor to enable alerting when the device  needs to be recharged.  The current timestamp is retrieved via NTP each time the board wakes from deep sleep mode.
 
-## TICK stack deployment
+## MQTT deployment
 
-I used a modified version of the Docker Compose script found [here](https://medium.com/lucjuggery/the-tick-stack-as-a-docker-application-package-1d0d6b869211) that adds persistent volumes for storage and configuration of Chronograf dashboards and Kapacitor alerting as well as exposing additional endpoints such as InfluxDB itself.  The YAML for this deployment can be found in the tick-stack directory.  I deployed this onto an ESXi box I had with spare capacity and added a DNS entry with fixed IP using my LAN's [pi-hole](https://pi-hole.net/) DHCP/DNS server.
-
+I used the eclipse/mosquitto image deployed into a Kubernetes cluster and connected it to HomeAssistant.
 ## Components Required
 
 Please note that all links are via Amazon UK.  This is solely because that's where I purchased them.  I did not receive any consideration from Amazon for linking to their site.  While these are the specific components that I used, there are many similar pin-compatible items available as alternatives.
@@ -30,9 +29,6 @@ This diagram shows the connector layout.  Note that I'm using pins 27 and 32 in 
 ## The Code
 
 The microcontroller code was written using [PlatformIO](https://platformio.org/) in VSCode.  Hopefully this is reasonably self-explanatory.  I've added some configuration macros at the top for details of specific rooms.  The RAIN_MONITOR macro should be defined when creating the outdoor version and commented out for the indoor model.
-
-The Pi code is written using [Go](https://golang.org/) and makes use of the [PayPal GATT](https://github.com/paypal/gatt) library which is no longer maintains so may cease to function if significant changes are made to the Linux BlueZ stack. There are more recent forks of this library but I found issues with them.
-
 ## Construction
 
 I'll leave that as an exercise for the user since I'm not 100% happy with the assembly I've done and you're likely to use a different enclosure to me anyway.  Here's a photo of what it looks like when put together:
