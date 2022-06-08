@@ -1,6 +1,7 @@
 # Environment Monitor with Logging to MQTT
 
-This device measures environmental conditions such as temperature,  humidity, relative pressure and rainfall and reports that data to InfluxDB via the Telegraf endpoint when deployed as part of the TICK  stack (https://www.influxdata.com/time-series-platform/).  It also  includes a battery voltage monitor to enable alerting when the device  needs to be recharged.  The current timestamp is retrieved via NTP each time the board wakes from deep sleep mode.
+This device measures environmental conditions such as temperature,  humidity, relative pressure and rainfall and reports that data to MQTT topics based on the location. The data pushed only includes the reading (no timestamp) but should be suitable for consumption
+by systems such as Home Assistant.
 
 ## MQTT deployment
 
@@ -36,3 +37,18 @@ I'll leave that as an exercise for the user since I'm not 100% happy with the as
 ![Assembled Outdoor Sensor](docs/outdoor-version.jpg)
 
 Since the rain sensor needs to be outside the box I had to drill a few holes for the standoffs and cabling which I sealed (hopefully) using Sugru.
+
+## Setup
+
+On first launch the device will create a WiFi hotspot called sensor-XXXXXX (where XXXXXX is the MAC address of the device). Connect
+a laptop or phone to this hotspot to use the captive portal to configure your WiFi, MQTT sever and (optionally) syslog server and/or firmware server.
+
+If the system detects a new firmware has been installed that requires additional configuration it will automatically switch back into configuration mode with an AP named sensor-LOCATION instead.
+
+To force the device back into configuration mode, press the reboot button and the press the BOOT button twice in quick succession.
+
+## Firmware Server
+
+This software uses the esp32FOTA library to detect firmware updates. This library expects a JSON descriptor that identifies the current firmware version and provides a link to the firmware's binary image. I have provided a Dockerfile and Python script that will provide such a server. To run it needs an environment BASE_URL to indicate where it is being server from. This is because the esp32FOTA library does not support relative URLs.
+
+I've configure esp32FOTA to support insecure HTTPS without validating certificates since I'll be serving this from a closed environment on a LAN. You may want to add your own code for certificate validation if you want to improve security.

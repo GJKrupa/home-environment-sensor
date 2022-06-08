@@ -1,0 +1,108 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <!-- Required meta tags -->
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1, shrink-to-fit=no" />
+
+    <link rel="stylesheet" href="bootstrap.min.css" />
+    <title>Configure Environment Sensor</title>
+  </head>
+  <body>
+    <div class="container">
+      <div class="alert alert-%STATUS%" role="alert">
+        %MESSAGE%
+      </div>
+
+      <h2>Configure Environment Sensor</h2>
+
+      <hr />
+
+      <h3>General Configuration</h3>
+
+      <form action="/configure" method="POST">
+        <div class="form-group row">
+          <label for="name" class="col-sm-2">Name</label>
+          <div class="col-sm-10">
+            <input type="text" class="form-control" id="name" name="name" aria-describedby="nameHelp" value="%NAME%" />
+            <small id="nameHelp" class="form-text text-muted">This should be a single word with no spaces or punctuation. It will be used to define the MQTT topic as environment/<i>name</i>/<i>gauge</i></small>
+          </div>
+        </div>
+
+        <hr />
+
+        <h3>Network</h3>
+
+        <div class="form-group row">
+          <label for="ssid" class="col-sm-2">SSID</label>
+          <div class="col-sm-10">
+            <input type="text" class="form-control" id="ssid" name="ssid" aria-describedby="ssidHelp" value="%SSID%" />
+            <small id="ssidHelp" class="form-text text-muted">SSID of your WiFi (must support 2.4GHz)</small>
+          </div>
+        </div>
+
+        <div class="form-group row">
+          <label for="passphrase" class="col-sm-2">Passphrase</label>
+          <div class="col-sm-10">
+            <input type="password" class="form-control" id="passphrase" name="passphrase" aria-describedby="passphraseHelp" />
+            <small id="passphraseHelp" class="form-text text-muted">Passphrase of your WiFi access point</small>
+          </div>
+        </div>
+
+        <div class="form-group row">
+          <label for="mqttHost" class="col-sm-2">MQTT Hostname</label>
+          <div class="col-sm-7">
+            <input type="text" class="form-control" id="mqttHost" name="mqttHost" value="%MQTT_HOST%" />
+          </div>
+          <label for="mqttPort" class="col-sm-1">Port</label>
+          <div class="col-sm-2">
+            <input type="number" class="form-control" id="mqttPort" name="mqttPort"  value="%MQTT_PORT%" />
+          </div>
+        </div>
+
+        <div class="form-group row">
+          <label for="updateUrl" class="col-sm-2">Firmware Version URL</label>
+          <div class="col-sm-10">
+            <input type="url" class="form-control" id="updateUrl" name="updateUrl" aria-describedby="updateUrlHelp" value="%UPDATE_URL%" />
+            <small id="updateUrlHelp" class="form-text text-muted">This should point to version.json</small>
+          </div>
+        </div>
+
+        <div class="form-group row">
+          <label for="syslogHost" class="col-sm-2">syslog Hostname</label>
+          <div class="col-sm-7">
+            <input type="text" class="form-control" id="syslogHost" name="syslogHost" value="%SYSLOG_HOST%" />
+          </div>
+          <label for="syslogPort" class="col-sm-1">Port</label>
+          <div class="col-sm-2">
+            <input type="number" class="form-control" id="syslogPort" name="syslogPort"  value="%SYSLOG_PORT%" />
+          </div>
+        </div>
+
+        <hr />
+
+        <h3>Features</h3>
+
+        <div class="form-check">
+          <input class="form-check-input" type="checkbox" value="" id="rainSensor" name="rainSensor" %RAIN_SENSOR%>
+          <label class="form-check-label" for="rainSensor">
+            Rain Sensor
+          </label>
+        </div>
+
+        <div class="form-check">
+          <input class="form-check-input" type="checkbox" value="" id="batterySensor" name="batterySensor" %BATTERY_SENSOR%>
+          <label class="form-check-label" for="batterySensor">
+            Battery Sensor
+          </label>
+        </div>
+
+        <hr />
+
+        <button type="submit" class="btn btn-primary">Save</button>
+      </form>
+    </div>
+
+    <script src="bootstrap.min.js"></script>
+  </body>
+</html>

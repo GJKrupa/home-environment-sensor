@@ -1,4 +1,5 @@
 #include <functional>
+#include <set>
 #include "mqtt_submitter.h"
 #include <WiFi.h>
 #include <AsyncMqttClient.h>
@@ -10,7 +11,7 @@ MQTTSubmitter::MQTTSubmitter(String location, const char* host, int port) :
     port(port),
     started(false),
     disconnected(false),
-    publishAck(false),
+    pendingAcks(),
     client(new AsyncMqttClient())
 {
 }
@@ -49,20 +50,18 @@ bool MQTTSubmitter::failed()
 
 void MQTTSubmitter::onConnect(bool sessionPresent)
 {
-  logln("Connected to MQTT.");
-  logf("Session present: %s\n", sessionPresent ? "true" : "false");
+  logln("MQTT is up");
 }
 
 void MQTTSubmitter::onDisconnect(AsyncMqttClientDisconnectReason reason)
 {
-    logln("Disconnected from MQTT.");
+    logln("MQTT is down");
     disconnected = true;
 }
 
 void MQTTSubmitter::onPublishAck(uint16_t packetId)
 {
-  logf("Publish acknowledged, packetId: %d\n", packetId);
-  publishAck = true;
+  pendingAcks.erase(packetId);
 }
 
 void MQTTSubmitter::sendReading(String name, double value)
@@ -74,21 +73,31 @@ void MQTTSubmitter::sendReading(String name, double value)
 
     String valueString = String(value);
 
-    logf("Submitting reading %s = %f\n", topic.c_str(), value);
+    logfmt("MQTT <- %s = %f\n", topic.c_str(), value);
 
-    publishAck = false;
     uint16_t msgId = client->publish(topic.c_str(), 1, true, valueString.c_str(), valueString.length());
-    for (int count = 0; count < 100 && !publishAck; ++count)
-    {
-        delay(10);
-    }
-    if (publishAck)
-    {
-        logf("Got ack on message ID: %d\n", msgId);
-    }
-    else
-    {
-        logf("Time out waiting for ack on message ID: %d\n", msgId);
-    }
-    
+    pendingAcks.insert(msgId);
+}
+
+void MQTTSubmitter::sendReading(String name, String value)
+{
+    String topic = "environment/";
+    topic.concat(location);
+    topic.concat("/");
+    topic.concat(name);
+
+    logfmt("MQTT <- %s = %s\n", topic.c_str(), value.c_str());
+
+    uint16_t msgId = client->publish(topic.c_str(), 1, true, value.c_str(), value.length());
+    pendingAcks.insert(msgId);
+}
+
+bool MQTTSubmitter::complete()
+{
+    return pendingAcks.empty();
+}
+
+const char *MQTTSubmitter::name()
+{
+    return "MQTT";
 }
