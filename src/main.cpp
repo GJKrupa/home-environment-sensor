@@ -1,39 +1,30 @@
 #include <Arduino.h>
 #include <SPI.h>
 #include <WiFi.h>
-#include "mqtt_submitter.h"
 #include <list>
-#include "home_sensor.h"
-#include "bme_sensor.h"
-#include "rain_sensor.h"
-#include "battery_sensor.h"
+#include <map>
+#include "ArduinoNvs.h"
 #include "logging.h"
+#include "submitters/submitter.h"
+#include "sensors/home_sensor.h"
+#include "states/states.h"
+#include "config.h"
+#include "time/every.h"
+#include "time/after.h"
+
+#ifndef VERSION_NUMBER
+#define VERSION_NUMBER "0.0.1"
+#endif
 
 // General configuration
 #define MICROSECONDS_IN_SECOND 1000000L
 #define FAILURE_BACKOFF 5L * MICROSECONDS_IN_SECOND
-#define REPORT_PERIOD 120L * MICROSECONDS_IN_SECOND
+#define REPORT_PERIOD 300L * MICROSECONDS_IN_SECOND
 
-// Will be overridden in config
-#ifndef WIFI_SSID
-#define WIFI_SSID ""
-#endif
-#ifndef WIFI_PASSPHRASE
-#define WIFI_PASSPHRASE ""
-#endif
-
-// Instance-specific configuration
-
-#ifndef ROOM
-#define ROOM "nowhere"
-#endif
-
-#ifndef RAIN_MONITOR
-#define RAIN_MONITOR 0
-#endif
-
-MQTTSubmitter submitter(ROOM, MQTT_SERVER, MQTT_PORT);
+std::list<ReadingSubmitter*> submitters;
 std::list<HomeSensor*> sensors;
+
+State currentState = ST_CONFIG_CHECK;
 
 void goToSleep(long microSeconds) {
     std::list<HomeSensor*>::iterator it;
@@ -41,125 +32,114 @@ void goToSleep(long microSeconds) {
     for (it = sensors.begin(); it != sensors.end(); ++it)
     {
         HomeSensor *item = (*it);
-        logf("Switching off: %s\n", item->name());
         item->switchOff();
     }
 
-    log_close();
     delay(20);
     esp_sleep_enable_timer_wakeup(microSeconds);
     esp_deep_sleep_start();
 }
 
+static After rebootWait;
+static int lastButtonState;
+
 void setup(void)
 {
-    log_init();
-
-    logf("Connecting to wifi %s\n", WIFI_SSID);
-    WiFi.begin(WIFI_SSID, WIFI_PASSPHRASE);
-
-    sensors.push_back(new BMEHomeSensor(25, 26, 32));
-#if RAIN_MONITOR == 1
-    sensors.push_back(new RainHomeSensor(34, 27));
-#endif
-#if BATTERY_MONITOR == 1
-    sensors.push_back(new  BatteryHomeSensor(33, 32));
-#endif
+    Serial.begin(115200);
+    Serial.printf("Version %s\n", VERSION_NUMBER);
+    rebootWait.start();
+    lastButtonState = digitalRead(0);
 }
 
-bool complete()
-{
-    std::list<HomeSensor*>::iterator it;
-    bool allDone = true;
-    for (it = sensors.begin(); it != sensors.end(); ++it)
-    {
-        HomeSensor *item = (*it);
-        if (!item->isOn() || !(item->sent() || item->failed()))
-        {
-            allDone = false;
-        }
-    }
-    return allDone;
-}
+static Every eachSecond(1000);
+static Every eachHalfSecond(500);
 
-int loopCount = 0;
+static int pressed = 0;
+int released = 0;
 
 void loop(void)
 {
-    wl_status_t status = WiFi.status();
+    int buttonState = digitalRead(0);
+    if (buttonState == 0 && lastButtonState == 1)
+    {
+        logln("Pressed");
+        ++pressed;
+    }
+    else if (buttonState == 1 && lastButtonState == 0)
+    {
+        logln("Released");
+        ++released;
+    }
+    lastButtonState = buttonState;
 
-    if (++loopCount > 20)
+    if (pressed >= 2 && released >= 2)
     {
-        logln("Reached loop limit, trying again later");
-        goToSleep(FAILURE_BACKOFF);
+        logln("Double-click detected - entering re-config mode");
+        Config::instance()->reconfigure();
+        ESP.restart();
     }
-    else if (status == WL_CONNECT_FAILED || status == WL_CONNECTION_LOST)
-    {
-        logln("Wifi has failed");
-        goToSleep(FAILURE_BACKOFF);
-    }
-    else if (!WiFi.isConnected())
-    {
-        logln("Wifi not yet connected");
-        delay(1000);
-    }
-    else if (submitter.failed())
-    {
-        logln("Submitter has failed");
-        goToSleep(FAILURE_BACKOFF);
-    }
-    else if (!submitter.initialised())
-    {
-        logln("Initialising submitter");
-        submitter.initialise();
-        loopCount = 0;
-    }
-    else if (!submitter.ready())
-    {
-        logln("Submitter is not ready");
-        delay(1000);
-    }
-    else
-    {
-        std::list<HomeSensor*>::iterator it;
 
-        if (complete())
-        {
-            logln("All reporting is complete");
-            goToSleep(REPORT_PERIOD);
-        }
-        else
-        {
-            bool mustWait = false;
-            for (it = sensors.begin(); it != sensors.end(); ++it)
+    switch (currentState)
+    {
+        case ST_CONFIG_CHECK:
+            currentState = state_config_check(currentState);
+            break;
+        case ST_CONFIG_ACTIVATE:
+            currentState = state_config_activate(currentState);
+            break;
+        case ST_CONFIG_ACCEPT:
+            currentState = state_config_accept(currentState);
+            break;
+
+        case ST_FEATURE_ENABLE:
+            currentState = state_feature_enable(currentState, &submitters, &sensors);
+            break;
+
+        case ST_NETWORK_ACTIVATE:
+            currentState = state_network_activate(currentState);
+            break;
+        case ST_NETWORK_WAIT:
+            currentState = state_network_wait(currentState);
+            break;
+
+        case ST_FIRMWARE_CHECK:
+            currentState = state_firmware_check(currentState);
+            break;
+
+        case ST_SUBMITTER_ACTIVATE:
+            currentState = state_submitter_activate(currentState, &submitters);
+            break;
+        case ST_SUBMITTER_WAIT:
+            currentState = state_submitter_wait(currentState, &submitters);
+            break;
+
+        case ST_SENSOR_ACTIVATE:
+            currentState = state_sensor_activate(currentState, &sensors);
+            break;
+        case ST_SENSOR_WAIT:
+            currentState = state_sensor_wait(currentState, &sensors);
+            break;
+        case ST_SENSOR_SEND:
+            currentState = state_sensor_submit(currentState, &submitters, &sensors);
+            break;
+
+        case ST_DONE:
+            if (rebootWait.isAfter(3000))
             {
-                HomeSensor *item = (*it);
-                if (item->isOn() && item->failed())
-                {
-                    logf("Item failed: %s\n", item->name());
-                    // No-op
-                }
-                else if (!item->sent() && !item->isOn())
-                {
-                    logf("Switching on: %s\n", item->name());
-                    item->switchOn();
-                    item->setup();
-                }
-                else if (!item->sent() && item->ready())
-                {
-                    logf("Submitting reading: %s\n", item->name());
-                    item->submitReading(submitter);
-                }
-                else
-                {
-                    logf("Sensor is not ready: %s\n", item->name());
-                    mustWait = true;
-                }
+                goToSleep(REPORT_PERIOD);
             }
-            if (mustWait)
+            else
             {
-                delay(200);
+                eachHalfSecond.run([]{ logln("Delay restart to allow reset button checks"); });
             }
-        }
+            break;
+        case ST_REBOOT:
+            ESP.restart();
+            break;
+        case ST_ERROR:
+            goToSleep(FAILURE_BACKOFF);
+            break;
+        default:
+            eachSecond.run([] { logfmt("I don't understand state: %d\n", currentState); });
     }
 }

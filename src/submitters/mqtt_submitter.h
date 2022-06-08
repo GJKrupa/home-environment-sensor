@@ -2,6 +2,7 @@
 #include "submitter.h"
 #include <Arduino.h>
 #include <AsyncMqttClient.h>
+#include <set>
 
 class MQTTSubmitter: public ReadingSubmitter {
 
@@ -11,8 +12,8 @@ private:
     int port;
     bool started;
     volatile bool disconnected;
-    volatile bool publishAck;
     AsyncMqttClient *client;
+    std::set<uint16_t> pendingAcks;
 
     void onDisconnect(AsyncMqttClientDisconnectReason reason);
     void onConnect(bool sessionPresent);
@@ -26,4 +27,7 @@ public:
     virtual bool initialised();
     virtual void initialise();
     virtual void sendReading(String name, double value);
+    virtual void sendReading(String name, String value);
+    virtual const char *name();
+    virtual bool complete();
 };

@@ -1,7 +1,7 @@
 #pragma once
 #include <Wire.h>
 #include <Adafruit_BME280.h>
-#include "home_sensor.h"
+#include "sensors/home_sensor.h"
 
 class BMEHomeSensor: public HomeSensor {
 public:

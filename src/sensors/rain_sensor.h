@@ -1,6 +1,6 @@
 #pragma once
 #include <Wire.h>
-#include "home_sensor.h"
+#include "sensors/home_sensor.h"
 
 class RainHomeSensor: public HomeSensor {
 public:

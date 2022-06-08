@@ -1,10 +1,7 @@
-#include "bme_sensor.h"
+#include "sensors/bme_sensor.h"
 #include "logging.h"
 
 #define PASCALS_IN_HPA 100.0f
-#ifndef ALTITUDE
-#define ALTITUDE 80.0f
-#endif
 
 BMEHomeSensor::BMEHomeSensor(int data_pin, int clk_pin, int pwr_pin) :
     data_pin(data_pin),
@@ -38,7 +35,7 @@ uint8_t BMEHomeSensor::getAddress()
         }
         else if (error==4)
         {
-            logf("Unknow error scanning I2C at address 0x%x", address);
+            logfmt("Err I2C addr %x", address);
         }
     }
     return found;
@@ -50,28 +47,21 @@ void BMEHomeSensor::setup()
     uint8_t address = getAddress();
     if (address == 0)
     {
-        logln("Unable to find an I2C device on the selected wire");
+        logln("No i2C on the wire");
         status = false;
     }
     else
     {
-        logf("Found an I2C device ID of 0x%x\n", bme.sensorID());
         status = bme.begin(address);
         if (!status)
         {
-            logln("Could not find a valid BME280 sensor, check wiring, address, sensor ID!");
-            logln("ID of:        0xFF probably means a bad address, a BMP 180 or BMP 085");
-            logln("         0x56-0x58 represents a BMP 280,");
-            logln("              0x60 represents a BME 280,");
-            logln("              0x61 represents a BME 680.");
+            logln("No BME280 detected");
         }
     }
 }
 
 void BMEHomeSensor::submitReading(ReadingSubmitter &submitter)
 {
-    logln("Getting BME sensors");
-
     sensors_event_t temp_event, pressure_event, humidity_event;
     bme.getTemperatureSensor()->getEvent(&temp_event);
     bme.getPressureSensor()->getEvent(&pressure_event);

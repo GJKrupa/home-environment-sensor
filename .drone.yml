@@ -1,0 +1,45 @@
+---
+kind: pipeline
+type: docker
+name: branch-build
+
+steps:
+  - name: build-pio
+    image: uxian/pio-esp32
+    commands:
+      - pio run
+    when:
+      event:
+        - pull_request
+
+  - name: docker-build
+    image: docker:dind
+    volumes:
+    - name: dockersock
+      path: /var/run
+    commands:
+    - sleep 5 # give docker enough time to start
+    - docker buildx ls
+    - docker buildx create --use --name my-builder
+    - docker buildx build --platform linux/amd64,linux/arm64 -t test:latest .
+    when:
+      event:
+        - pull_request
+
+services:
+- name: dind
+  image: docker:dind
+  privileged: true
+  volumes:
+  - name: dockersock
+    path: /var/run
+
+volumes:
+- name: dockersock
+  temp: {}
+
+trigger:
+  ref:
+    include:
+      - refs/pull/**
+      - refs/tags/**

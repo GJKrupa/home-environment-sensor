@@ -8,4 +8,7 @@ public:
     virtual bool initialised() = 0;
     virtual void initialise() = 0;
     virtual void sendReading(String name, double value) = 0;
+    virtual void sendReading(String name, String value) = 0;
+    virtual const char *name();
+    virtual bool complete();
 };
