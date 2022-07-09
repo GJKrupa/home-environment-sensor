@@ -19,7 +19,7 @@ steps:
   - name: build-pio-tag
     image: uxian/pio-esp32
     commands:
-      - export PLATFORMIO_BUILD_FLAGS="-DVERSION_NUMBER='${DRONE_TAG}'"
+      - export PLATFORMIO_BUILD_FLAGS="-DVERSION_NUMBER='\\"${DRONE_TAG}\\"'"
       - pio run
     when:
       event:
