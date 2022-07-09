@@ -39,6 +39,8 @@ steps:
   - name: docker-tag-build
     image: plugins/docker
     settings:
+      build_args:
+        - VERSION_NUMBER=${DRONE_TAG}
       username:
         from_secret: docker_username
       password:
