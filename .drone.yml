@@ -1,7 +1,11 @@
 ---
 kind: pipeline
 type: docker
-name: branch-build
+name: arm64-build
+
+platform:
+  arch: arm64
+  os: linux
 
 steps:
   - name: build-pio
@@ -11,32 +15,34 @@ steps:
     when:
       event:
         - pull_request
+        - tag
 
-  - name: docker-build
-    image: docker:dind
-    volumes:
-    - name: dockersock
-      path: /var/run
-    commands:
-    - sleep 5 # give docker enough time to start
-    - docker buildx ls
-    - docker buildx create --use --name my-builder
-    - docker buildx build --platform linux/amd64,linux/arm64 -t test:latest .
+  - name: docker-pr-build
+    image: plugins/docker
+    settings:
+      dry_run: true
+      repo: test
+      tags:
+        - ${DRONE_COMMIT_SHA}
     when:
       event:
         - pull_request
 
-services:
-- name: dind
-  image: docker:dind
-  privileged: true
-  volumes:
-  - name: dockersock
-    path: /var/run
-
-volumes:
-- name: dockersock
-  temp: {}
+  - name: docker-tag-build
+    image: plugins/docker
+    settings:
+      username:
+        from_secret: docker_username
+      password:
+        from_secret: docker_password
+      repo:
+        from_secret: docker_repo
+      tags:
+        - latest
+        - "${DRONE_TAG}"
+    when:
+      event:
+        - tag
 
 trigger:
   ref:
