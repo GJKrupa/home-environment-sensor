@@ -12,6 +12,7 @@ private:
     int port;
     bool started;
     volatile bool disconnected;
+    volatile bool failure;
     AsyncMqttClient *client;
     std::set<uint16_t> pendingAcks;
 
