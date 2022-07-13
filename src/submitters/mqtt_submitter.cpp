@@ -55,7 +55,7 @@ void MQTTSubmitter::onConnect(bool sessionPresent)
 
 void MQTTSubmitter::onDisconnect(AsyncMqttClientDisconnectReason reason)
 {
-    logln("MQTT is down");
+    logfmt("MQTT is down because %d\n", reason);
     disconnected = true;
 }
 
