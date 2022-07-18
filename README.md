@@ -10,7 +10,7 @@ I used the eclipse/mosquitto image deployed into a Kubernetes cluster and connec
 
 Please note that all links are via Amazon UK.  This is solely because that's where I purchased them.  I did not receive any consideration from Amazon for linking to their site.  While these are the specific components that I used, there are many similar pin-compatible items available as alternatives.
 * [JZK ESP32 DevKit clone](https://www.amazon.co.uk/gp/product/B071JR9WS9/ref=ppx_yo_dt_b_asin_title_o03_s01?ie=UTF8&psc=1).  Any DevKitC variant will do but this was the cheapest I could find in the UK
-* [Raspberry Pi](https://www.raspberrypi.org/) - a Pi 4 is recommended as it supports Bluetooth 5 but any model that supports BLE will work
+* [Raspberry Pi](https://www.raspberrypi.org/) - this is just to host the firmware update server - there are lots of alternative solutions for that
 * [Voltage Detector](https://www.amazon.co.uk/gp/product/B076Q27P59/ref=ppx_yo_dt_b_asin_title_o09_s00?ie=UTF8&psc=1)
 * [Rain Sensor](https://www.amazon.co.uk/gp/product/B072JCRY6R/ref=ppx_yo_dt_b_asin_title_o05_s00?ie=UTF8&psc=1)
 * [BME280-based Multi-Sensor](https://www.amazon.co.uk/gp/product/B0799FH5PG/ref=ppx_yo_dt_b_asin_title_o06_s00?ie=UTF8&psc=1)
@@ -30,6 +30,7 @@ This diagram shows the connector layout.  Note that I'm using pins 27 and 32 in 
 ## The Code
 
 The microcontroller code was written using [PlatformIO](https://platformio.org/) in VSCode.  Hopefully this is reasonably self-explanatory.  I've added some configuration macros at the top for details of specific rooms.  The RAIN_MONITOR macro should be defined when creating the outdoor version and commented out for the indoor model.
+
 ## Construction
 
 I'll leave that as an exercise for the user since I'm not 100% happy with the assembly I've done and you're likely to use a different enclosure to me anyway.  Here's a photo of what it looks like when put together:
@@ -51,4 +52,4 @@ To force the device back into configuration mode, press the reboot button and th
 
 This software uses the esp32FOTA library to detect firmware updates. This library expects a JSON descriptor that identifies the current firmware version and provides a link to the firmware's binary image. I have provided a Dockerfile and Python script that will provide such a server. To run it needs an environment BASE_URL to indicate where it is being server from. This is because the esp32FOTA library does not support relative URLs.
 
-I've configure esp32FOTA to support insecure HTTPS without validating certificates since I'll be serving this from a closed environment on a LAN. You may want to add your own code for certificate validation if you want to improve security.
+I've configured esp32FOTA to support insecure HTTPS without validating certificates since I'll be serving this from a closed environment on a LAN. You may want to add your own code for certificate validation if you want to improve security.
