@@ -29,7 +29,7 @@ This diagram shows the connector layout.  Note that I'm using pins 27 and 32 in 
 
 ## The Code
 
-The microcontroller code was written using [PlatformIO](https://platformio.org/) in VSCode.  Hopefully this is reasonably self-explanatory.  I've added some configuration macros at the top for details of specific rooms.  The RAIN_MONITOR macro should be defined when creating the outdoor version and commented out for the indoor model.
+The microcontroller code was written using [PlatformIO](https://platformio.org/) in VSCode.  Hopefully this is reasonably self-explanatory.
 
 ## Construction
 
